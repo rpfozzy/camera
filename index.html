@@ -2,10 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instant Camera Access</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <title>Advanced Camera App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        body {
+            touch-action: none;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
         .neumorphic {
             background: #e0e5ec;
             box-shadow: 5px 5px 10px #a3b1c6, -5px -5px 10px #ffffff;
@@ -28,13 +35,43 @@
                 box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
             }
         }
+        #video {
+            aspect-ratio: 3/4;
+            object-fit: cover;
+        }
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 15px;
+            border-radius: 5px;
+            background: #d3d3d3;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        .slider::-moz-range-thumb {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
     <div class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-4 text-center">Instant Camera Access</h1>
+        <h1 class="text-3xl font-bold mb-4 text-center">Advanced Camera App</h1>
         <div class="neumorphic p-4 mb-4">
-            <video id="video" class="w-full h-auto" autoplay playsinline></video>
+            <video id="video" class="w-full h-auto mx-auto" autoplay playsinline></video>
         </div>
         <div class="flex justify-center space-x-4 mb-4">
             <button id="captureBtn" class="neumorphic p-4 rounded-full pulse">
@@ -49,6 +86,21 @@
                 </svg>
             </button>
         </div>
+        <div class="mb-4">
+            <label for="zoomSlider" class="block text-sm font-medium text-gray-700">Zoom: <span id="zoomValue">1x</span></label>
+            <input type="range" id="zoomSlider" class="slider" min="1" max="10" step="0.1" value="1">
+        </div>
+        <div class="mb-4">
+            <label for="brightnessSlider" class="block text-sm font-medium text-gray-700">Brightness: <span id="brightnessValue">100%</span></label>
+            <input type="range" id="brightnessSlider" class="slider" min="0" max="200" step="10" value="100">
+        </div>
+        <div class="mb-4">
+            <label for="contrastSlider" class="block text-sm font-medium text-gray-700">Contrast: <span id="contrastValue">100%</span></label>
+            <input type="range" id="contrastSlider" class="slider" min="0" max="200" step="10" value="100">
+        </div>
+        <div class="mb-4">
+            <button id="filterBtn" class="neumorphic p-2 rounded">Toggle Filter</button>
+        </div>
         <div id="gallery" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
     </div>
 
@@ -57,23 +109,44 @@
         const captureBtn = document.getElementById('captureBtn');
         const flipBtn = document.getElementById('flipBtn');
         const gallery = document.getElementById('gallery');
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomValue = document.getElementById('zoomValue');
+        const brightnessSlider = document.getElementById('brightnessSlider');
+        const brightnessValue = document.getElementById('brightnessValue');
+        const contrastSlider = document.getElementById('contrastSlider');
+        const contrastValue = document.getElementById('contrastValue');
+        const filterBtn = document.getElementById('filterBtn');
 
         let stream;
         let facingMode = 'user';
+        let zoomLevel = 1;
+        let filterEnabled = false;
 
         async function initCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: facingMode }
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 1080 },
+                        height: { ideal: 1440 }
+                    }
                 });
                 video.srcObject = stream;
+                const track = stream.getVideoTracks()[0];
+                const capabilities = track.getCapabilities();
+                if (capabilities.zoom) {
+                    zoomSlider.min = capabilities.zoom.min;
+                    zoomSlider.max = capabilities.zoom.max;
+                    zoomSlider.step = (capabilities.zoom.max - capabilities.zoom.min) / 100;
+                } else {
+                    zoomSlider.disabled = true;
+                }
             } catch (err) {
                 console.error('Error accessing camera:', err);
                 alert('Error accessing camera. Please make sure you have given permission.');
             }
         }
 
-        // Инициализация камеры при загрузке страницы
         initCamera();
 
         captureBtn.addEventListener('click', () => {
@@ -108,6 +181,49 @@
             }
             initCamera();
         });
+
+        zoomSlider.addEventListener('input', (e) => {
+            zoomLevel = e.target.value;
+            zoomValue.textContent = `${zoomLevel}x`;
+            const track = stream.getVideoTracks()[0];
+            track.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
+        });
+
+        brightnessSlider.addEventListener('input', updateFilters);
+        contrastSlider.addEventListener('input', updateFilters);
+
+        function updateFilters() {
+            const brightness = brightnessSlider.value;
+            const contrast = contrastSlider.value;
+            brightnessValue.textContent = `${brightness}%`;
+            contrastValue.textContent = `${contrast}%`;
+            video.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+        }
+
+        filterBtn.addEventListener('click', () => {
+            filterEnabled = !filterEnabled;
+            if (filterEnabled) {
+                video.style.filter = 'sepia(100%)';
+            } else {
+                updateFilters();
+            }
+        });
+
+        // Prevent zooming and moving the page
+        document.addEventListener('touchmove', function (event) {
+            if (event.scale !== 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
     </script>
 </body>
-          </html>
+</html>
