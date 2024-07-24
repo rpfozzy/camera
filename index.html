@@ -2,16 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Advanced Camera App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            touch-action: none;
-            overflow: hidden;
-            position: fixed;
-            width: 100%;
-            height: 100%;
+            touch-action: pan-y;
+            overflow-x: hidden;
         }
         .neumorphic {
             background: #e0e5ec;
@@ -99,7 +96,7 @@
             <input type="range" id="contrastSlider" class="slider" min="0" max="200" step="10" value="100">
         </div>
         <div class="mb-4">
-            <button id="filterBtn" class="neumorphic p-2 rounded">Toggle Filter</button>
+            <button id="effectBtn" class="neumorphic p-2 rounded">Toggle Effects</button>
         </div>
         <div id="gallery" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
     </div>
@@ -115,12 +112,20 @@
         const brightnessValue = document.getElementById('brightnessValue');
         const contrastSlider = document.getElementById('contrastSlider');
         const contrastValue = document.getElementById('contrastValue');
-        const filterBtn = document.getElementById('filterBtn');
+        const effectBtn = document.getElementById('effectBtn');
 
         let stream;
         let facingMode = 'user';
         let zoomLevel = 1;
-        let filterEnabled = false;
+        let currentEffect = 0;
+        const effects = [
+            '',
+            'sepia(100%)',
+            'grayscale(100%)',
+            'invert(100%)',
+            'hue-rotate(180deg)',
+            'saturate(200%)'
+        ];
 
         async function initCamera() {
             try {
@@ -138,6 +143,8 @@
                     zoomSlider.min = capabilities.zoom.min;
                     zoomSlider.max = capabilities.zoom.max;
                     zoomSlider.step = (capabilities.zoom.max - capabilities.zoom.min) / 100;
+                    zoomSlider.value = 1;
+                    zoomSlider.disabled = false;
                 } else {
                     zoomSlider.disabled = true;
                 }
@@ -183,8 +190,8 @@
         });
 
         zoomSlider.addEventListener('input', (e) => {
-            zoomLevel = e.target.value;
-            zoomValue.textContent = `${zoomLevel}x`;
+            zoomLevel = parseFloat(e.target.value);
+            zoomValue.textContent = `${zoomLevel.toFixed(1)}x`;
             const track = stream.getVideoTracks()[0];
             track.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
         });
@@ -197,33 +204,27 @@
             const contrast = contrastSlider.value;
             brightnessValue.textContent = `${brightness}%`;
             contrastValue.textContent = `${contrast}%`;
-            video.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+            applyFilters();
         }
 
-        filterBtn.addEventListener('click', () => {
-            filterEnabled = !filterEnabled;
-            if (filterEnabled) {
-                video.style.filter = 'sepia(100%)';
-            } else {
-                updateFilters();
-            }
+        function applyFilters() {
+            const brightness = brightnessSlider.value;
+            const contrast = contrastSlider.value;
+            const effect = effects[currentEffect];
+            video.style.filter = `brightness(${brightness}%) contrast(${contrast}%) ${effect}`;
+        }
+
+        effectBtn.addEventListener('click', () => {
+            currentEffect = (currentEffect + 1) % effects.length;
+            applyFilters();
         });
 
-        // Prevent zooming and moving the page
-        document.addEventListener('touchmove', function (event) {
-            if (event.scale !== 1) {
-                event.preventDefault();
-            }
-        }, { passive: false });
+        // Auto-switch effects every 5 seconds
+        setInterval(() => {
+            currentEffect = (currentEffect + 1) % effects.length;
+            applyFilters();
+        }, 5000);
 
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', function (event) {
-            const now = (new Date()).getTime();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-            }
-            lastTouchEnd = now;
-        }, false);
     </script>
 </body>
 </html>
